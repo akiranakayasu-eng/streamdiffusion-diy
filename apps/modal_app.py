@@ -19,7 +19,6 @@ WebSocket に送る → Modal の GPU で自作 StreamDiffusion が変換 → JP
 止める
   modal app stop streamdiffusion-diy
 """
-from __future__ import annotations
 
 import asyncio
 import io
