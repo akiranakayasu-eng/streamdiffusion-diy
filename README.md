@@ -20,14 +20,15 @@ StreamDiffusion（リアルタイム画像生成のパイプライン）を、�
 | Windows | NVIDIA の GPU（CUDA、TensorRT は予定） | Spout（予定） | 試作 |
 | Modal | クラウドの GPU。カメラと表示は手元、映像は WebSocket | 手元で受けて Syphon / Spout（予定） | 予定 |
 
-`sdstream/` が共通の本体、`apps/` が版ごとの入口です。
+`sdstream/` が共通の本体、`apps/` が版ごとの入口です。入力はカメラか動画ファイル（`--input`）、結果は画面か動画ファイル（`--output`、左が入力・右が生成）。
 
 ## 使い方
 
 ```bash
 pip install -r requirements.txt
 python test_dummy.py                       # モデル無しで仕組みを確かめる
-python apps/local_camera.py --prompt "oil painting, portrait"     # q で終了
+python apps/local_stream.py --prompt "oil painting, portrait"     # カメラ。q で終了
+python apps/local_stream.py --input samples/test.mp4 --output out.mp4   # 動画ファイル
 ```
 
 既定のモデルは `stabilityai/sd-turbo` と `madebyollin/taesd`。SD1.5 系 + LCM-LoRA なら
