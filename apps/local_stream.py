@@ -8,6 +8,7 @@
   python apps/local_stream.py --input samples/test.mp4 --output out.mp4    # 動画
   python apps/local_stream.py --input samples/test.mp4 --output out.mp4 --no-window
   q キーで終わる。出力の動画は左が入力、右が生成。
+  動画ファイルのときは類似度フィルタを既定で切る（--ssf で入れる）。
 """
 from __future__ import annotations
 
@@ -64,7 +65,9 @@ def main():
     ap.add_argument("--output", default=None, help="結果を書き出す動画ファイル（.mp4）")
     ap.add_argument("--max-frames", type=int, default=0, help="0 なら最後まで")
     ap.add_argument("--no-window", action="store_true", help="画面に出さない")
-    ap.add_argument("--no-ssf", action="store_true")
+    ap.add_argument("--no-ssf", action="store_true", help="類似度フィルタを切る（カメラのとき）")
+    ap.add_argument("--ssf", action="store_true",
+                    help="動画ファイルでも類似度フィルタを使う（既定は切る。前の出力の使い回しで遅れて見えるため）")
     args = ap.parse_args()
 
     parts = SDParts(args.model, lcm_lora=args.lcm_lora)
@@ -73,7 +76,8 @@ def main():
                        latent_shape=(4, args.size // 8, args.size // 8))
     core = StreamDiffusionCore(parts.unet_fn, cfg, parts.device, parts.dtype)
     core.set_prompt(parts.embed(args.prompt), parts.embed(""))
-    ssf = None if args.no_ssf else SimilarityFilter()
+    use_ssf = args.ssf if args.input else not args.no_ssf
+    ssf = SimilarityFilter() if use_ssf else None
 
     stop = threading.Event()
     if args.input:
