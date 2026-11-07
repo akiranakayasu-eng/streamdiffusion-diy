@@ -48,7 +48,7 @@
     <label><input id="negOn" type="checkbox"> ネガティブ</label>
     <input id="negative" type="text" value="blurry, low quality, text, watermark" aria-label="ネガティブプロンプト" placeholder="ネガティブプロンプト">
   </div>
-  <div class="row">
+  <div class="row" id="gRow">
     <label for="guidance">ガイダンス</label>
     <input id="guidance" type="range" min="1" max="3" step="0.1" value="1.5" style="flex:1">
     <span id="gval">1.5</span>
@@ -110,7 +110,13 @@ function settings() {
     guidance: +$("guidance").value, strength: $("strength").value, size: +$("size").value });
 }
 $("guidance").oninput = () => { $("gval").textContent = (+$("guidance").value).toFixed(1); };
-$("negOn").onchange = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
+function showNeg() {
+  const on = $("negOn").checked;
+  $("negative").style.display = on ? "" : "none";
+  $("gRow").style.display = on ? "" : "none";
+}
+showNeg();
+$("negOn").onchange = () => { showNeg(); if (ws && ws.readyState === 1) ws.send(settings()); };
 $("apply").onclick = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
 
 function sendFrame() {
