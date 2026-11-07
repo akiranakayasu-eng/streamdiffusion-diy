@@ -45,7 +45,8 @@
     <input id="prompt" type="text" value="watercolor painting, vivid colors" aria-label="プロンプト" placeholder="プロンプト">
   </div>
   <div class="row">
-    <input id="negative" type="text" value="" aria-label="ネガティブプロンプト" placeholder="ネガティブプロンプト（空なら使わない、少し遅くなる）">
+    <label><input id="negOn" type="checkbox"> ネガティブ</label>
+    <input id="negative" type="text" value="blurry, low quality, text, watermark" aria-label="ネガティブプロンプト" placeholder="ネガティブプロンプト">
   </div>
   <div class="row">
     <label for="guidance">ガイダンス</label>
@@ -71,7 +72,7 @@
     <span id="fps"></span>
   </div>
   <div id="status">カメラか動画ファイルを選んでください。</div>
-  <p><small>ガイダンスはネガティブプロンプトを入れたときだけ効きます。1 回最長 10 分で自動停止します。画面を閉じたり別のアプリに移ったりしても止まります。GPU は使っているあいだだけ課金されます。</small></p>
+  <p><small>ネガティブは ON のときだけ使い（すぐ切り替わります）、少し遅くなります。ガイダンスはネガティブが ON のときだけ効きます。1 回最長 10 分で自動停止します。画面を閉じたり別のアプリに移ったりしても止まります。GPU は使っているあいだだけ課金されます。</small></p>
 </main>
 
 <script>
@@ -105,10 +106,11 @@ $("file").onchange = async (e) => {
 };
 
 function settings() {
-  return JSON.stringify({ prompt: $("prompt").value, negative: $("negative").value,
+  return JSON.stringify({ prompt: $("prompt").value, negative: $("negOn").checked ? $("negative").value : "",
     guidance: +$("guidance").value, strength: $("strength").value, size: +$("size").value });
 }
 $("guidance").oninput = () => { $("gval").textContent = (+$("guidance").value).toFixed(1); };
+$("negOn").onchange = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
 $("apply").onclick = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
 
 function sendFrame() {
