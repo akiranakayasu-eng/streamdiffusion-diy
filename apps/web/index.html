@@ -136,7 +136,7 @@ function start() {
     sendFrame();   // 1 枚返ってきたら次を送る（遅れをためない）
   };
   ws.onclose = () => { if (running) status("接続が切れました。続けるときは「開始」を押してください。", true); stop(); };
-  ws.onerror = () => status("接続できませんでした。URL の合言葉（?key=）を確かめてください。", true);
+  ws.onerror = () => { if (!$("status").classList.contains("warn")) status("接続が途中で切れました。もう一度「開始」を押してください。", true); };
 }
 
 function stop() {

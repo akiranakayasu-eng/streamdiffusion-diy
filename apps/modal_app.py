@@ -25,6 +25,7 @@ import asyncio
 import io
 import os
 import time
+import traceback
 from pathlib import Path
 
 import modal
@@ -142,12 +143,14 @@ class Server:
         async def ws(socket: WebSocket):
             await socket.accept()
             if socket.query_params.get("key") != key:
+                print("ws: 合言葉が違う")
                 await socket.send_text(json.dumps({"error": "合言葉が違います"}))
-                await socket.close(code=4401)
+                await socket.close(code=1008, reason="bad key")
                 return
             if self.busy.locked():
+                print("ws: 使用中")
                 await socket.send_text(json.dumps({"error": "ほかの人が使用中です"}))
-                await socket.close(code=4409)
+                await socket.close(code=1013, reason="busy")
                 return
             async with self.busy:
                 start = time.time()
@@ -179,11 +182,16 @@ class Server:
                             out = await asyncio.to_thread(self._process_jpeg, msg["bytes"])
                             await socket.send_bytes(out)
                 except WebSocketDisconnect:
-                    pass
-                finally:
+                    return
+                except Exception as e:  # 原因を Modal の記録とページの両方に出す
+                    traceback.print_exc()
                     try:
-                        await socket.close()
+                        await socket.send_text(json.dumps({"error": f"サーバーのエラー: {e}"}))
                     except Exception:
                         pass
+                try:
+                    await socket.close(code=1000, reason="done")
+                except Exception:
+                    pass
 
         return api
