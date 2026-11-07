@@ -18,7 +18,7 @@ StreamDiffusion（リアルタイム画像生成のパイプライン）を、�
 |---|---|---|---|
 | Mac | Apple Silicon の GPU（MPS） | Syphon（予定） | 試作 |
 | Windows | NVIDIA の GPU（CUDA、TensorRT は予定） | Spout（予定） | 試作 |
-| Modal | クラウドの GPU。カメラと表示は手元、映像は WebSocket | 手元で受けて Syphon / Spout（予定） | 予定 |
+| Modal | クラウドの GPU（L4、空きが無ければ A10G）。カメラと表示はスマホや PC のブラウザ、映像は WebSocket | ブラウザに表示 | 試作 |
 
 `sdstream/` が共通の本体、`apps/` が版ごとの入口です。入力はカメラか動画ファイル（`--input`）、結果は画面か動画ファイル（`--output`、左が入力・右が生成）。
 
@@ -34,6 +34,19 @@ python apps/local_stream.py --input samples/test.mp4 --output out.mp4   # 動画
 既定のモデルは `stabilityai/sd-turbo` と `madebyollin/taesd`。SD1.5 系 + LCM-LoRA なら
 `--model <SD1.5 系> --lcm-lora latent-consistency/lcm-lora-sdv1-5`。
 モデルの重みはこのリポジトリに含みません。各モデルの利用規約に従ってください。
+
+## Modal 版（スマホのブラウザで使う）
+
+```bash
+pip install modal && modal setup                                  # 1 回だけ
+modal secret create sdstream-key SDSTREAM_KEY=<長い合言葉>          # 1 回だけ
+modal deploy apps/modal_app.py                                     # 表示された URL を使う
+```
+
+表示された URL に `?key=<合言葉>` を付けてスマホで開き、カメラか動画ファイルを選んで「開始」。
+課金の事故を防ぐため、1 回の接続は最長 10 分、30 秒映像が来なければ停止、画面を離れても停止、
+ページは自動で再接続しません。使われなくなったコンテナは 60 秒で止まります（最大 1 台）。
+完全に止めるときは `modal app stop streamdiffusion-diy`。
 
 ## 元にした論文
 
