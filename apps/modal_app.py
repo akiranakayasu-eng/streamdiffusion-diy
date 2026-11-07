@@ -60,6 +60,8 @@ image = (
 )
 
 app = modal.App(APP_NAME)
+# 使うたびの速さの記録（modal dict items sdstream-stats で見る）
+stats_dict = modal.Dict.from_name("sdstream-stats", create_if_missing=True)
 
 
 @app.cls(
@@ -97,6 +99,7 @@ class Server:
                                         self.parts.device, self.parts.dtype)
         self.core.set_prompt(self.parts.embed(prompt), self.uncond)
         self.size = size
+        self.strength = strength
 
     # ---- 1 フレーム ------------------------------------------------------
     def _process_array(self, img):
@@ -117,6 +120,32 @@ class Server:
         buf = io.BytesIO()
         Image.fromarray((y * 255).astype("uint8")).save(buf, "JPEG", quality=85)
         return buf.getvalue()
+
+    # ---- 記録 ------------------------------------------------------------
+    async def _record(self, st: dict, ua: str):
+        import json
+
+        import torch
+
+        n = st["frames"]
+        if n < 2:
+            return
+        dur = st["last"] - st["first"]
+        rec = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
+            "gpu": torch.cuda.get_device_name(0),
+            "size": self.size, "strength": self.strength,
+            "t_index": list(STRENGTH.get(self.strength, STRENGTH["strong"])),
+            "frames": n, "seconds": round(dur, 1),
+            "fps": round((n - 1) / dur, 2) if dur > 0 else None,   # 往復を含む実際の速さ
+            "gpu_ms": round(st["gpu_sec"] / n * 1000, 1),           # 1 枚の GPU 処理時間
+            "client": "mobile" if "Mobile" in ua else "desktop",
+        }
+        print("STATS " + json.dumps(rec, ensure_ascii=False))
+        try:
+            await stats_dict.put.aio(f"{rec['time']} {rec['client']}", rec)
+        except Exception:
+            traceback.print_exc()
 
     # ---- Web ---------------------------------------------------------------
     @modal.asgi_app()
@@ -153,6 +182,7 @@ class Server:
                 return
             async with self.busy:
                 start = time.time()
+                st = {"frames": 0, "gpu_sec": 0.0, "first": None, "last": None}
                 await socket.send_text(json.dumps(
                     {"ready": True, "session_max_sec": SESSION_MAX_SEC}))
                 try:
@@ -173,21 +203,31 @@ class Server:
                             break
                         if msg.get("text"):
                             s = json.loads(msg["text"])
+                            # 設定が変わる前の区間を記録して数え直す
+                            await self._record(st, socket.headers.get("user-agent", ""))
+                            st = {"frames": 0, "gpu_sec": 0.0, "first": None, "last": None}
                             await asyncio.to_thread(
                                 self._configure, s.get("prompt", "watercolor painting"),
                                 s.get("strength", "strong"), int(s.get("size", 512)))
                             await socket.send_text(json.dumps({"configured": True}))
                         elif msg.get("bytes"):
+                            t1 = time.time()
                             out = await asyncio.to_thread(self._process_jpeg, msg["bytes"])
+                            t2 = time.time()
+                            st["frames"] += 1
+                            st["gpu_sec"] += t2 - t1
+                            st["first"] = st["first"] or t1
+                            st["last"] = t2
                             await socket.send_bytes(out)
                 except WebSocketDisconnect:
-                    return
+                    pass
                 except Exception as e:  # 原因を Modal の記録とページの両方に出す
                     traceback.print_exc()
                     try:
                         await socket.send_text(json.dumps({"error": f"サーバーのエラー: {e}"}))
                     except Exception:
                         pass
+                await self._record(st, socket.headers.get("user-agent", ""))
                 try:
                     await socket.close(code=1000, reason="done")
                 except Exception:

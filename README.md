@@ -48,6 +48,9 @@ modal deploy apps/modal_app.py                                     # 表示さ�
 ページは自動で再接続しません。使われなくなったコンテナは 60 秒で止まります（最大 1 台）。
 完全に止めるときは `modal app stop streamdiffusion-diy`。
 
+使うたびに、GPU の種類・大きさ・強さ・fps（往復を含む実際の速さ）・1 枚の GPU 処理時間を
+Modal の Dict `sdstream-stats` に記録します（`modal dict items sdstream-stats` で見る）。
+
 ## 元にした論文
 
 仕組みは次の論文によります。コードは公式実装を写さず、論文から書き起こしました。
