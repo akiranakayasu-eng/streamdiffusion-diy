@@ -42,7 +42,15 @@
     <label class="file">動画ファイル<input id="file" type="file" accept="video/*"></label>
   </div>
   <div class="row">
-    <input id="prompt" type="text" value="watercolor painting, vivid colors" aria-label="プロンプト">
+    <input id="prompt" type="text" value="watercolor painting, vivid colors" aria-label="プロンプト" placeholder="プロンプト">
+  </div>
+  <div class="row">
+    <input id="negative" type="text" value="" aria-label="ネガティブプロンプト" placeholder="ネガティブプロンプト（空なら使わない、少し遅くなる）">
+  </div>
+  <div class="row">
+    <label for="guidance">ガイダンス</label>
+    <input id="guidance" type="range" min="1" max="3" step="0.1" value="1.5" style="flex:1">
+    <span id="gval">1.5</span>
   </div>
   <div class="row">
     <select id="strength" aria-label="変換の強さ">
@@ -63,7 +71,7 @@
     <span id="fps"></span>
   </div>
   <div id="status">カメラか動画ファイルを選んでください。</div>
-  <p><small>1 回最長 10 分で自動停止します。画面を閉じたり別のアプリに移ったりしても止まります。GPU は使っているあいだだけ課金されます。</small></p>
+  <p><small>ガイダンスはネガティブプロンプトを入れたときだけ効きます。1 回最長 10 分で自動停止します。画面を閉じたり別のアプリに移ったりしても止まります。GPU は使っているあいだだけ課金されます。</small></p>
 </main>
 
 <script>
@@ -97,8 +105,10 @@ $("file").onchange = async (e) => {
 };
 
 function settings() {
-  return JSON.stringify({ prompt: $("prompt").value, strength: $("strength").value, size: +$("size").value });
+  return JSON.stringify({ prompt: $("prompt").value, negative: $("negative").value,
+    guidance: +$("guidance").value, strength: $("strength").value, size: +$("size").value });
 }
+$("guidance").oninput = () => { $("gval").textContent = (+$("guidance").value).toFixed(1); };
 $("apply").onclick = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
 
 function sendFrame() {

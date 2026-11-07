@@ -89,17 +89,28 @@ class Server:
         self._process_array(torch.zeros(1, 3, 512, 512))
 
     # ---- 設定 ------------------------------------------------------------
-    def _configure(self, prompt: str, strength: str, size: int):
+    def _configure(self, prompt: str, strength: str, size: int,
+                   negative: str = "", guidance: float = 1.0):
+        """negative が空なら CFG なし（速い）。入っていれば RCFG onetime で効かせる。"""
         from sdstream.stream import StreamConfig, StreamDiffusionCore
 
         size = size if size in SIZES else 512
+        negative = (negative or "").strip()
+        guidance = max(1.0, min(float(guidance or 1.0), 5.0))
+        if negative and guidance <= 1.0:
+            guidance = 1.5               # ネガティブを入れたのに効かない、を防ぐ
         cfg = StreamConfig(t_index_list=STRENGTH.get(strength, STRENGTH["strong"]),
+                           guidance_scale=guidance,
+                           cfg_type="onetime" if negative else "self",
                            latent_shape=(4, size // 8, size // 8))
         self.core = StreamDiffusionCore(self.parts.unet_fn, cfg,
                                         self.parts.device, self.parts.dtype)
-        self.core.set_prompt(self.parts.embed(prompt), self.uncond)
+        uncond = self.parts.embed(negative) if negative else self.uncond
+        self.core.set_prompt(self.parts.embed(prompt), uncond)
         self.size = size
         self.strength = strength
+        self.negative = bool(negative)
+        self.guidance = guidance
 
     # ---- 1 フレーム ------------------------------------------------------
     def _process_array(self, img):
@@ -136,6 +147,7 @@ class Server:
             "gpu": torch.cuda.get_device_name(0),
             "size": self.size, "strength": self.strength,
             "t_index": list(STRENGTH.get(self.strength, STRENGTH["strong"])),
+            "negative": self.negative, "guidance": self.guidance,
             "frames": n, "seconds": round(dur, 1),
             "fps": round((n - 1) / dur, 2) if dur > 0 else None,   # 往復を含む実際の速さ
             "gpu_ms": round(st["gpu_sec"] / n * 1000, 1),           # 1 枚の GPU 処理時間
@@ -208,7 +220,8 @@ class Server:
                             st = {"frames": 0, "gpu_sec": 0.0, "first": None, "last": None}
                             await asyncio.to_thread(
                                 self._configure, s.get("prompt", "watercolor painting"),
-                                s.get("strength", "strong"), int(s.get("size", 512)))
+                                s.get("strength", "strong"), int(s.get("size", 512)),
+                                s.get("negative", ""), float(s.get("guidance", 1.0)))
                             await socket.send_text(json.dumps({"configured": True}))
                         elif msg.get("bytes"):
                             t1 = time.time()
