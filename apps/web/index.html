@@ -119,14 +119,21 @@ showNeg();
 $("negOn").onchange = () => { showNeg(); if (ws && ws.readyState === 1) ws.send(settings()); };
 $("apply").onclick = () => { if (ws && ws.readyState === 1) ws.send(settings()); };
 
+// 返事を待たずに最大 3 枚まで先に送る（日本と米国の往復約 0.4 秒の待ちを重ねて隠す）
+const MAX_INFLIGHT = 3;
+let inflight = 0;
+function pump() { while (running && inflight < MAX_INFLIGHT) { inflight++; sendFrame(); } }
+
 function sendFrame() {
-  if (!running || !ws || ws.readyState !== 1) return;
+  if (!running || !ws || ws.readyState !== 1) { inflight = Math.max(0, inflight - 1); return; }
   const size = +$("size").value;
   grab.width = grab.height = size;
   const w = video.videoWidth, h = video.videoHeight, s = Math.min(w, h);
-  if (!s) { setTimeout(sendFrame, 50); return; }
+  if (!s) { setTimeout(sendFrame, 50); return; }   // 映像の準備待ち（inflight はそのまま）
   gctx.drawImage(video, (w - s) / 2, (h - s) / 2, s, s, 0, 0, size, size);
-  grab.toBlob(b => { if (running && ws && ws.readyState === 1) ws.send(b); }, "image/jpeg", 0.8);
+  grab.toBlob(b => {
+    if (running && ws && ws.readyState === 1) ws.send(b); else inflight = Math.max(0, inflight - 1);
+  }, "image/jpeg", 0.8);
 }
 
 function start() {
@@ -141,17 +148,18 @@ function start() {
       if (m.error) { status(m.error, true); stop(); }
       else if (m.stopped) { status(m.stopped, true); stop(); }
       else if (m.ready) {
-        running = true; frames = 0; t0 = performance.now();
+        running = true; frames = 0; inflight = 0; t0 = performance.now();
         ws.send(settings()); status("変換中");
         timer = setTimeout(() => { status("10 分たったので止めました", true); stop(); }, m.session_max_sec * 1000);
-      } else if (m.configured) { sendFrame(); }
+      } else if (m.configured) { pump(); }
       return;
     }
     const bmp = await createImageBitmap(ev.data);
     octx.drawImage(bmp, 0, 0, out.width, out.height);
     frames++;
     if (frames % 10 === 0) $("fps").textContent = (frames * 1000 / (performance.now() - t0)).toFixed(1) + " fps";
-    sendFrame();   // 1 枚返ってきたら次を送る（遅れをためない）
+    inflight = Math.max(0, inflight - 1);
+    pump();   // 1 枚返ってきたら 1 枚足す（先送りは最大 3 枚なので遅れはためない）
   };
   ws.onclose = () => { if (running) status("接続が切れました。続けるときは「開始」を押してください。", true); stop(); };
   ws.onerror = () => { if (!$("status").classList.contains("warn")) status("接続が途中で切れました。もう一度「開始」を押してください。", true); };
